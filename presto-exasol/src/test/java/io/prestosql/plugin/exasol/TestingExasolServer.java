@@ -13,6 +13,10 @@
  */
 package io.prestosql.plugin.exasol;
 
+import com.exasol.containers.ExasolContainer;
+import io.airlift.log.Logger;
+import io.airlift.log.Logging;
+
 import java.io.Closeable;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -24,39 +28,34 @@ import static java.lang.String.format;
 public class TestingExasolServer
         implements Closeable
 {
-    private static final String USER = "sys";
-    private static final String PASSWORD = "exasol";
-    // exasol does not support multiple databases
-    private static final String DATABASE = "tpch";
-    private static final String IPADDRESS = "127.0.0.1";
-    private static final String PORT = "8899";
+    Logger log = Logger.get(TestingExasolServer.class);
+
+    private ExasolContainer<? extends ExasolContainer<?>> dockerContainer;
 
     public TestingExasolServer()
     {
-        // docker run --name exasoldb -p 127.0.0.1:8899:8888 --detach --privileged --stop-timeout 120 exasol/docker-db:latest-6.1
-        // do nothing, we run this externally at the moment
-        /*
-        dockerContainer = new PostgreSQLContainer("postgres:10.3")
-                .withDatabaseName(DATABASE)
-                .withUsername(USER)
-                .withPassword(PASSWORD);
+        dockerContainer = new ExasolContainer<>();
+        dockerContainer.withReuse(true);
         dockerContainer.start();
-        */
+
+        Logging.initialize();
     }
 
     public String getUsername()
     {
-        return USER;
+        log.info("======== username ======== %s", dockerContainer.getUsername());
+        return dockerContainer.getUsername();
     }
 
     public String getPassword()
     {
-        return PASSWORD;
+        log.info("======== password ======== %s", dockerContainer.getPassword());
+        return dockerContainer.getPassword();
     }
 
     public void execute(String sql)
     {
-        execute(sql, USER, PASSWORD);
+        execute(sql, getUsername(), getPassword());
     }
 
     public void execute(String sql, String user, String password)
@@ -72,12 +71,12 @@ public class TestingExasolServer
 
     public String getJdbcUrl()
     {
-        return format("jdbc:exa:%s:%s", IPADDRESS, PORT);
+        return format("jdbc:exa:%s", dockerContainer.getExaConnectionAddress());
     }
 
     @Override
     public void close()
     {
-        //dockerContainer.close();
+        dockerContainer.close();
     }
 }

@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: io.prestosql:presto-geospatial-toolkit:347">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/prestosql/presto-geospatial-toolkit/347/presto-geospatial-toolkit-347.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/io/prestosql/presto-geospatial-toolkit/347/presto-geospatial-toolkit-347-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/prestosql/presto-geospatial-toolkit/347/presto-geospatial-toolkit-347-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

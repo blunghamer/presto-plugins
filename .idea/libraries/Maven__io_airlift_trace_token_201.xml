@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: io.airlift:trace-token:201">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/airlift/trace-token/201/trace-token-201.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/io/airlift/trace-token/201/trace-token-201-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/airlift/trace-token/201/trace-token-201-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

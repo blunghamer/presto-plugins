@@ -55,8 +55,8 @@ import io.prestosql.spi.connector.ConnectorTableMetadata;
 import io.prestosql.spi.connector.SchemaTableName;
 import io.prestosql.spi.connector.TableNotFoundException;
 import io.prestosql.spi.type.DecimalType;
-import io.prestosql.spi.type.Decimals;
 import io.prestosql.spi.type.MapType;
+import io.prestosql.spi.type.TimeType;
 import io.prestosql.spi.type.TinyintType;
 import io.prestosql.spi.type.Type;
 import io.prestosql.spi.type.TypeManager;
@@ -66,7 +66,6 @@ import javax.inject.Inject;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
@@ -85,15 +84,9 @@ import static com.fasterxml.jackson.core.JsonFactory.Feature.CANONICALIZE_FIELD_
 import static com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS;
 import static com.google.common.base.Verify.verify;
 import static io.airlift.slice.Slices.utf8Slice;
-import static io.prestosql.plugin.jdbc.DecimalConfig.DecimalMapping.ALLOW_OVERFLOW;
-import static io.prestosql.plugin.jdbc.DecimalSessionSessionProperties.getDecimalDefaultScale;
-import static io.prestosql.plugin.jdbc.DecimalSessionSessionProperties.getDecimalRounding;
-import static io.prestosql.plugin.jdbc.DecimalSessionSessionProperties.getDecimalRoundingMode;
 import static io.prestosql.plugin.jdbc.JdbcErrorCode.JDBC_ERROR;
-import static io.prestosql.plugin.jdbc.StandardColumnMappings.decimalColumnMapping;
 import static io.prestosql.plugin.jdbc.StandardColumnMappings.fromPrestoTimestamp;
 import static io.prestosql.plugin.jdbc.StandardColumnMappings.timeWriteFunction;
-import static io.prestosql.plugin.jdbc.StandardColumnMappings.timestampReadFunction;
 import static io.prestosql.plugin.jdbc.StandardColumnMappings.tinyintWriteFunction;
 import static io.prestosql.plugin.jdbc.StandardColumnMappings.varbinaryWriteFunction;
 import static io.prestosql.plugin.jdbc.StandardColumnMappings.varcharWriteFunction;
@@ -104,7 +97,6 @@ import static io.prestosql.spi.StandardErrorCode.INVALID_FUNCTION_ARGUMENT;
 import static io.prestosql.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.prestosql.spi.type.DateTimeEncoding.packDateTimeWithZone;
 import static io.prestosql.spi.type.DateTimeEncoding.unpackMillisUtc;
-import static io.prestosql.spi.type.DecimalType.createDecimalType;
 import static io.prestosql.spi.type.TimeType.TIME;
 import static io.prestosql.spi.type.TimeZoneKey.UTC_KEY;
 import static io.prestosql.spi.type.TimestampType.TIMESTAMP;
@@ -113,7 +105,6 @@ import static io.prestosql.spi.type.TypeSignature.mapType;
 import static io.prestosql.spi.type.VarbinaryType.VARBINARY;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.prestosql.spi.type.Varchars.isVarcharType;
-import static java.lang.Math.min;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.sql.DatabaseMetaData.columnNoNulls;
@@ -124,10 +115,6 @@ public class ExasolClient
 {
     private static final Logger log = Logger.get(ExasolClient.class);
 
-    /**
-     * @see Array#getResultSet()
-     */
-    private static final int ARRAY_RESULT_SET_VALUE_COLUMN = 2;
     private static final String DUPLICATE_TABLE_SQLSTATE = "42500";
     private static final String VARCHAR_LIMIT = "2000000";
 
@@ -153,13 +140,13 @@ public class ExasolClient
         this.varcharMapType = (MapType) typeManager.getType(mapType(VARCHAR.getTypeSignature(), VARCHAR.getTypeSignature()));
 
         List<String> tableTypes = new ArrayList<>();
-        addAll(tableTypes, "TABLE", "VIEW", "MATERIALIZED VIEW", "FOREIGN TABLE");
-        /*if (exasolConfig.isIncludeSystemTables()) {
+        addAll(tableTypes, "TABLE", "SYSTEM TABLE", "VIEW");
+        if (exasolConfig.isIncludeSystemTables()) {
             addAll(tableTypes, "SYSTEM TABLE", "SYSTEM VIEW");
-        }*/
+        }
         this.tableTypes = tableTypes.toArray(new String[0]);
 
-        JdbcTypeHandle bigintTypeHandle = new JdbcTypeHandle(Types.BIGINT, Optional.of("bigint"), 0, 0, Optional.empty(), Optional.empty());
+        JdbcTypeHandle bigintTypeHandle = new JdbcTypeHandle(Types.BIGINT, Optional.of("bigint"), 0, Optional.empty(), Optional.empty(), Optional.empty());
         this.aggregateFunctionRewriter = new AggregateFunctionRewriter(
                 this::quoted,
                 ImmutableSet.<AggregateFunctionRule>builder()
@@ -185,6 +172,17 @@ public class ExasolClient
             boolean exists = DUPLICATE_TABLE_SQLSTATE.equals(e.getSQLState());
             throw new PrestoException(exists ? ALREADY_EXISTS : JDBC_ERROR, e);
         }
+    }
+
+    @Override
+    public void setColumnComment(JdbcIdentity identity, JdbcTableHandle handle, JdbcColumnHandle column, Optional<String> comment)
+    {
+        String sql = format(
+                "COMMENT ON COLUMN %s.%s IS %s",
+                quoted(handle.getRemoteTableName()),
+                quoted(column.getColumnName()),
+                comment.isPresent() ? format("'%s'", comment.get()) : "NULL");
+        execute(identity, sql);
     }
 
     @Override
@@ -215,12 +213,19 @@ public class ExasolClient
     protected ResultSet getTables(Connection connection, Optional<String> schemaName, Optional<String> tableName)
             throws SQLException
     {
+        // connection.getCatalog()
+        //escapeNamePattern(schemaName, metadata.getSearchStringEscape()).orElse(null)
+        // tableTypes.clone()
         DatabaseMetaData metadata = connection.getMetaData();
-        return metadata.getTables(
-                connection.getCatalog(),
-                escapeNamePattern(schemaName, metadata.getSearchStringEscape()).orElse(null),
+        ResultSet rs = metadata.getTables(
+                null,
+                null,
                 escapeNamePattern(tableName, metadata.getSearchStringEscape()).orElse(null),
                 tableTypes.clone());
+
+        log.info(rs.toString());
+        log.info("%s %s %s %s", connection.getCatalog(), schemaName, tableName, tableTypes);
+        return rs;
     }
 
     @Override
@@ -241,7 +246,7 @@ public class ExasolClient
                             resultSet.getInt("DATA_TYPE"),
                             Optional.of(resultSet.getString("TYPE_NAME")),
                             resultSet.getInt("COLUMN_SIZE"),
-                            resultSet.getInt("DECIMAL_DIGITS"),
+                            Optional.of(resultSet.getInt("DECIMAL_DIGITS")),
                             Optional.empty(),
                             //Optional.ofNullable(arrayColumnDimensions.get(columnName)),
                             Optional.empty());
@@ -342,12 +347,15 @@ public class ExasolClient
             return Optional.of(timeColumnMappingWithTruncation());
         }
         */
+        /*
         if (typeHandle.getJdbcType() == Types.TIMESTAMP) {
             return Optional.of(ColumnMapping.longMapping(
                     TIMESTAMP,
                     timestampReadFunction(session),
                     timestampWriteFunction()));
         }
+        */
+        /*
         if (typeHandle.getJdbcType() == Types.NUMERIC && getDecimalRounding(session) == ALLOW_OVERFLOW) {
             if (typeHandle.getColumnSize() == 131089) {
                 // decimal type with unspecified scale - up to 131072 digits before the decimal point; up to 16383 digits after the decimal point)
@@ -360,6 +368,7 @@ public class ExasolClient
                 return Optional.of(decimalColumnMapping(createDecimalType(Decimals.MAX_PRECISION, scale), getDecimalRoundingMode(session)));
             }
         }
+        */
         /*
         if (typeHandle.getJdbcType() == Types.ARRAY) {
             ArrayMapping arrayMapping = getArrayMapping(session);
@@ -424,7 +433,8 @@ public class ExasolClient
             return WriteMapping.sliceMapping("VARCHAR", varbinaryWriteFunction());
         }
         if (TIME.equals(type)) {
-            return WriteMapping.longMapping("time", timeWriteFunction(session));
+            TimeType timeType = (TimeType) type;
+            return WriteMapping.longMapping("time", timeWriteFunction(timeType.getPrecision()));
         }
         if (TIMESTAMP.equals(type)) {
             return WriteMapping.longMapping("timestamp", timestampWriteFunction());

@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: io.airlift:slice:0.39">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/airlift/slice/0.39/slice-0.39.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/io/airlift/slice/0.39/slice-0.39-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/airlift/slice/0.39/slice-0.39-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

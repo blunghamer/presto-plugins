@@ -55,21 +55,9 @@ public class TestExasolDistributedQueries
     }
 
     @Override
-    protected boolean supportsViews()
-    {
-        return true;
-    }
-
-    @Override
     protected boolean supportsArrays()
     {
         return false;
-    }
-
-    @Override
-    protected boolean supportsCommentOnColumn()
-    {
-        return true;
     }
 
     @Override
@@ -86,14 +74,6 @@ public class TestExasolDistributedQueries
                 "col_required2 BIGINT NOT NULL" +
                 ")");
     }
-
-    /*
-    @Override
-    public void testDelete()
-    {
-        // delete is not supported
-    }
-    */
 
     @Test
     public void testInformationSchemaFiltering()

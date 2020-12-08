@@ -5,7 +5,7 @@
     <parent>
         <groupId>io.prestosql</groupId>
         <artifactId>presto-root</artifactId>
-        <version>340</version>
+        <version>347</version>
     </parent>
 
     <artifactId>presto-exasol</artifactId>
@@ -60,7 +60,7 @@
         <dependency>
             <groupId>com.exasol</groupId>
             <artifactId>exasol-jdbc</artifactId>
-            <version>6.2.3</version>
+            <version>7.0.3</version>
         </dependency>
 
         <dependency>
@@ -143,6 +143,13 @@
 
         <dependency>
             <groupId>io.prestosql</groupId>
+            <artifactId>presto-main</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.prestosql</groupId>
             <artifactId>presto-testing</artifactId>
             <scope>test</scope>
         </dependency>
@@ -166,6 +173,20 @@
         </dependency>
 
         <dependency>
+            <groupId>com.exasol</groupId>
+            <artifactId>exasol-testcontainers</artifactId>
+            <scope>test</scope>
+            <version>3.3.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>net.java.dev.jna</groupId>
+            <artifactId>jna</artifactId>
+            <scope>test</scope>
+            <version>5.5.0</version>
+        </dependency>
+
+        <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
@@ -182,5 +203,6 @@
             <artifactId>testng</artifactId>
             <scope>test</scope>
         </dependency>
+
     </dependencies>
 </project>

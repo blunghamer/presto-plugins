@@ -23,6 +23,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Locale;
 import java.util.UUID;
 
 import static io.prestosql.tpch.TpchTable.CUSTOMER;
@@ -101,18 +102,6 @@ public class TestExasolIntegrationSmokeTest
 
     /*
     @Test
-    public void testMaterializedView()
-            throws Exception
-    {
-        execute("CREATE MATERIALIZED VIEW tpch.test_mv as SELECT * FROM tpch.orders");
-        assertTrue(getQueryRunner().tableExists(getSession(), "test_mv"));
-        assertQuery("SELECT orderkey FROM test_mv", "SELECT orderkey FROM orders");
-        execute("DROP MATERIALIZED VIEW tpch.test_mv");
-    }
-    */
-
-    /*
-    @Test
     public void testSystemTable()
     {
         assertThat(computeActual("SHOW TABLES FROM pg_catalog").getOnlyColumnAsSet())
@@ -130,7 +119,7 @@ public class TestExasolIntegrationSmokeTest
     public void testTableWithNoSupportedColumns()
             throws Exception
     {
-        String unsupportedDataType = "interval";
+        String unsupportedDataType = "array";
         String supportedDataType = "varchar(5)";
 
         try (AutoCloseable ignore1 = withTable("tpch.no_supported_columns", format("(c %s)", unsupportedDataType));
@@ -174,12 +163,10 @@ public class TestExasolIntegrationSmokeTest
         String schemaName = format("tmp_schema_%s", UUID.randomUUID().toString().replaceAll("-", ""));
         try (AutoCloseable schema = withSchema(schemaName);
                 AutoCloseable table = withTable(format("%s.test_cleanup", schemaName), "(x INTEGER)")) {
-            assertQuery(format("SELECT table_name FROM sys.exa_all_tables WHERE table_schema = '%s'", schemaName), "VALUES 'test_cleanup'");
-
-            execute(format("ALTER TABLE %s.test_cleanup ADD CHECK (x > 0)", schemaName));
-
-            assertQueryFails(format("INSERT INTO %s.test_cleanup (x) VALUES (0)", schemaName), "ERROR: new row .* violates check constraint [\\s\\S]*");
-            assertQuery(format("SELECT table_name FROM sys.exa_all_tables WHERE table_schema = '%s'", schemaName), "VALUES 'test_cleanup'");
+            assertQuery(format("SELECT table_name FROM sys.exa_all_tables WHERE table_schema = '%s'", schemaName.toUpperCase(Locale.ROOT)), "VALUES 'test_cleanup'".toUpperCase(Locale.ROOT));
+            //execute(format("ALTER TABLE %s.test_cleanup ADD CHECK (x > 0)", schemaName));
+            assertQueryFails(format("INSERT INTO %s.test_cleanup (x) VALUES ('uh')", schemaName), "Insert query has mismatched column types.*");
+            assertQuery(format("SELECT table_name FROM sys.exa_all_tables WHERE table_schema = '%s'", schemaName.toUpperCase(Locale.ROOT)), "VALUES 'test_cleanup'".toUpperCase(Locale.ROOT));
         }
     }
 
@@ -232,15 +219,15 @@ public class TestExasolIntegrationSmokeTest
             throws Exception
     {
         execute("CREATE TABLE tpch.char_trailing_space (x char(10))");
-        assertUpdate("INSERT INTO char_trailing_space VALUES ('test')", 1);
+        assertUpdate("INSERT INTO tpch.char_trailing_space VALUES ('test')", 1);
 
-        assertQuery("SELECT * FROM char_trailing_space WHERE x = char 'test'", "VALUES 'test'");
-        assertQuery("SELECT * FROM char_trailing_space WHERE x = char 'test  '", "VALUES 'test'");
-        assertQuery("SELECT * FROM char_trailing_space WHERE x = char 'test        '", "VALUES 'test'");
+        assertQuery("SELECT * FROM tpch.char_trailing_space WHERE x = cast ('test' as char(4)) ", "VALUES 'test'");
+        assertQuery("SELECT * FROM tpch.char_trailing_space WHERE x = cast ('test  ' as char(4))", "VALUES 'test'");
+        assertQuery("SELECT * FROM tpch.char_trailing_space WHERE x = cast ('test        ' as char(4))", "VALUES 'test'");
 
-        assertEquals(getQueryRunner().execute("SELECT * FROM char_trailing_space WHERE x = char ' test'").getRowCount(), 0);
+        assertEquals(getQueryRunner().execute("SELECT * FROM tpch.char_trailing_space WHERE x = cast( ' test' as char(5))").getRowCount(), 0);
 
-        assertUpdate("DROP TABLE char_trailing_space");
+        assertUpdate("DROP TABLE tpch.char_trailing_space");
     }
 
     @Test
@@ -288,23 +275,27 @@ public class TestExasolIntegrationSmokeTest
         // TODO support aggregation pushdown with GROUPING SETS
         // TODO support aggregation over expressions
 
-        assertAggregationPushedDown("SELECT count(*) FROM nation");
-        assertAggregationPushedDown("SELECT count(nationkey) FROM nation");
-        assertAggregationPushedDown("SELECT count(1) FROM nation");
-        assertAggregationPushedDown("SELECT count() FROM nation");
-        assertAggregationPushedDown("SELECT regionkey, min(nationkey) FROM nation GROUP BY regionkey");
-        assertAggregationPushedDown("SELECT regionkey, max(nationkey) FROM nation GROUP BY regionkey");
-        assertAggregationPushedDown("SELECT regionkey, sum(nationkey) FROM nation GROUP BY regionkey");
-        assertAggregationPushedDown("SELECT regionkey, avg(nationkey) FROM nation GROUP BY regionkey");
+        // SELECT DISTINCT
+
+        assertThat(query("SELECT DISTINCT regionkey FROM nation")).isFullyPushedDown();
+
+        assertThat(query("SELECT count(*) FROM nation")).isFullyPushedDown();
+        assertThat(query("SELECT count(nationkey) FROM nation")).isFullyPushedDown();
+        assertThat(query("SELECT count(1) FROM nation")).isFullyPushedDown();
+        assertThat(query("SELECT count() FROM nation")).isFullyPushedDown();
+        assertThat(query("SELECT regionkey, min(nationkey) FROM nation GROUP BY regionkey")).isFullyPushedDown();
+        assertThat(query("SELECT regionkey, max(nationkey) FROM nation GROUP BY regionkey")).isFullyPushedDown();
+        assertThat(query("SELECT regionkey, sum(nationkey) FROM nation GROUP BY regionkey")).isFullyPushedDown();
+        assertThat(query("SELECT regionkey, avg(nationkey) FROM nation GROUP BY regionkey")).isFullyPushedDown();
 
         try (AutoCloseable ignoreTable = withTable("tpch.test_aggregation_pushdown", "(short_decimal decimal(9, 3), long_decimal decimal(30, 10))")) {
             execute("INSERT INTO tpch.test_aggregation_pushdown VALUES (100.000, 100000000.000000000)");
             execute("INSERT INTO tpch.test_aggregation_pushdown VALUES (123.321, 123456789.987654321)");
 
-            assertAggregationPushedDown("SELECT min(short_decimal), min(long_decimal) FROM test_aggregation_pushdown");
-            assertAggregationPushedDown("SELECT max(short_decimal), max(long_decimal) FROM test_aggregation_pushdown");
-            assertAggregationPushedDown("SELECT sum(short_decimal), sum(long_decimal) FROM test_aggregation_pushdown");
-            assertAggregationPushedDown("SELECT avg(short_decimal), avg(long_decimal) FROM test_aggregation_pushdown");
+            assertThat(query("SELECT min(short_decimal), min(long_decimal) FROM test_aggregation_pushdown")).isFullyPushedDown();
+            assertThat(query("SELECT max(short_decimal), max(long_decimal) FROM test_aggregation_pushdown")).isFullyPushedDown();
+            assertThat(query("SELECT sum(short_decimal), sum(long_decimal) FROM test_aggregation_pushdown")).isFullyPushedDown();
+            assertThat(query("SELECT avg(short_decimal), avg(long_decimal) FROM test_aggregation_pushdown")).isFullyPushedDown();
         }
     }
 
@@ -315,11 +306,11 @@ public class TestExasolIntegrationSmokeTest
         try (AutoCloseable ignore = withTable("tpch.test_column_comment",
                 "(col1 bigint, col2 bigint, col3 bigint)")) {
             execute("COMMENT ON COLUMN tpch.test_column_comment.col1 IS 'test comment'");
-            execute("COMMENT ON COLUMN tpch.test_column_comment.col2 IS ''"); // it will be NULL, PostgreSQL doesn't store empty comment
+            execute("COMMENT ON COLUMN tpch.test_column_comment.col2 IS ''"); // it will be NULL, Exasol does empty the comment on empty string
 
             assertQuery(
-                    "SELECT column_name, column_comment FROM sys.exa_all_columns WHERE column_schema = 'tpch' AND column_table = 'test_column_comment'",
-                    "VALUES ('col1', 'test comment'), ('col2', null), ('col3', null)");
+                    "SELECT column_name, column_comment FROM sys.exa_all_columns WHERE column_schema = 'TPCH' AND column_table = 'TEST_COLUMN_COMMENT'",
+                    "VALUES ('COL1', 'test comment'), ('COL2', null), ('COL3', null)");
         }
     }
 

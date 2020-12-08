@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/presto-exasol/presto-exasol.iml" filepath="$PROJECT_DIR$/presto-exasol/presto-exasol.iml" />
+      <module fileurl="file://$PROJECT_DIR$/presto-root.iml" filepath="$PROJECT_DIR$/presto-root.iml" />
+    </modules>
+  </component>
+</project>

@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: io.prestosql:presto-main:test-jar:tests:347">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/prestosql/presto-main/347/presto-main-347-tests.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/io/prestosql/presto-main/347/presto-main-347-test-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/io/prestosql/presto-main/347/presto-main-347-test-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
